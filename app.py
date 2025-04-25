@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify, url_for
 import os
 import json
+import re
 from datetime import datetime
 from typing import Dict, Any
 
@@ -37,6 +38,10 @@ def perform_research():
         # Process the query
         result = research_system.process_query(query)
         
+        # Clean up the final answer before storing
+        if "final_answer" in result:
+            result["final_answer"] = clean_final_answer(result["final_answer"])
+        
         # Store the result in our cache
         research_cache[research_id] = result
         
@@ -47,6 +52,32 @@ def perform_research():
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+def clean_final_answer(answer_text):
+    """Clean up the final answer by removing links and formatting the text better"""
+    # Remove URLs
+    cleaned_text = answer_text #re.sub(r'https?://\S+', '', answer_text)
+    
+    # Remove source citations like [Source: URL]
+    cleaned_text = re.sub(r'\[Source:.*?\]', '', cleaned_text)
+    
+    # Clean up any remaining brackets with citations
+    cleaned_text = re.sub(r'\(Note:.*?\)', '', cleaned_text)
+    
+    # Replace multiple spaces with a single space
+    cleaned_text = re.sub(r' +', ' ', cleaned_text)
+    
+    # Remove text between ** marks but keep the content
+    cleaned_text = re.sub(r'\*\*(.*?)\*\*', r'\1', cleaned_text)
+    
+    # Replace multiple newlines with a single newline
+    cleaned_text = re.sub(r'\n+', '\n', cleaned_text)
+    
+    # Make sure paragraphs are properly formatted
+    paragraphs = [p.strip() for p in cleaned_text.split('\n') if p.strip()]
+    cleaned_text = '\n\n'.join(paragraphs)
+    
+    return cleaned_text
 
 @app.route('/results/<research_id>')
 def view_results(research_id):
